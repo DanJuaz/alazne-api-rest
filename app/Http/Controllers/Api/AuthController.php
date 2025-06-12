@@ -3,10 +3,11 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Models\User;
+use App\Models\Usuario;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
+use Illuminate\Support\Str;
 
 class AuthController extends Controller
 {
@@ -14,25 +15,26 @@ class AuthController extends Controller
     {
         try {
             $request->validate([
-                'usuario' => 'required|usuario',
-                'password' => 'required',
+                'usuario' => 'required|string',
+                'password' => 'required|string',
             ]);
 
-            $user = User::where('usuario', $request->usuario)->first();
+            $user = Usuario::where('usuario', $request->usuario)->first();
 
             if (!$user || !Hash::check($request->password, $user->password)) {
                 throw ValidationException::withMessages([
                     'usuario' => ['Las credenciales proporcionadas son incorrectas.'],
                 ]);
             }
-
-            $token = $user->createToken('auth_token')->plainTextToken;
+            // Generar token aleatorio y guardarlo
+            $token = Str::random(60);
+            $user->token = $token;
+            $user->save();
 
             return response()->json([
                 'success' => true,
                 'message' => 'Inicio de sesión exitoso',
                 'token' => $token,
-                'user' => $user
             ], 200);
 
         } catch (ValidationException $e) {
@@ -41,6 +43,7 @@ class AuthController extends Controller
                 'message' => $e->getMessage(),
                 'errors' => $e->errors()
             ], 422);
+
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
@@ -52,7 +55,12 @@ class AuthController extends Controller
     public function logout(Request $request)
     {
         try {
-            $request->user()->currentAccessToken()->delete();
+            $user = Usuario::where('token', $request->bearerToken())->first();
+
+            if ($user) {
+                $user->token = null;
+                $user->save();
+            }
 
             return response()->json([
                 'success' => true,
