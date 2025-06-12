@@ -39,71 +39,67 @@ class DatabaseController extends BaseApiController
     public function availableBookings(): JsonResponse
     {
         date_default_timezone_set('Europe/Madrid');
-        // Return data of available bookings
 
         $host = env('DB_HOST');
         $dbname = env('DB_DATABASE');
         $username = env('DB_USERNAME');
         $password = env('DB_PASSWORD');
 
-        $resultado = [
-            // Se devolveran los siguientes  5 dás laborables (L-V)
-            '1' => [],
-            '2' => [],
-            '3' => [],
-            '4' => [],
-            '5' => [],
-
-        ];
+        $resultado = [];
 
         try {
             $conn = mysqli_connect($host, $username, $password, $dbname);
             if (!$conn) throw new \Exception('Connection failed');
 
-            foreach (['1' => 0, '2' => 1, '3' => 2, '4' => 3, '5' => 4] as $dia => $offset) {
+            $workingDaysFound = 0;
+            $offset = 0;
+
+            // Continue until we find 5 working days
+            while ($workingDaysFound < 5) {
                 $fecha = date('Y-m-d', strtotime("+$offset day"));
+                $dayOfWeek = date('N', strtotime("+$offset day"));
 
-                // Revisar si es sábado o domingo
-                if (date('N', strtotime($fecha)) >= 6) {
-                    $resultado[$dia]['fecha'] = $fecha;
-                    continue;
-                }
-                
-                $ocupadas = [];
+                // Skip weekends (6 = Saturday, 7 = Sunday)
+                if ($dayOfWeek < 6) {
+                    $workingDaysFound++;
+                    $ocupadas = [];
 
-                $sql = "SELECT fecha_hora_inicio FROM reservas 
-                    WHERE DATE(fecha_hora_inicio) = '$fecha' 
-                      AND HOUR(fecha_hora_inicio) BETWEEN 10 AND 12
-                      AND status = 1";
+                    $sql = "SELECT fecha_hora_inicio FROM reservas 
+                        WHERE DATE(fecha_hora_inicio) = '$fecha' 
+                          AND HOUR(fecha_hora_inicio) BETWEEN 10 AND 12
+                          AND status = 1";
 
-                $query = mysqli_query($conn, $sql);
-                if (!$query) throw new \Exception(mysqli_error($conn));
+                    $query = mysqli_query($conn, $sql);
+                    if (!$query) throw new \Exception(mysqli_error($conn));
 
-                while ($row = mysqli_fetch_assoc($query)) {
-                    $hora = date('H:i', strtotime($row['fecha_hora_inicio']));
-                    $ocupadas[] = $hora;
-                }
+                    while ($row = mysqli_fetch_assoc($query)) {
+                        $hora = date('H:i', strtotime($row['fecha_hora_inicio']));
+                        $ocupadas[] = $hora;
+                    }
 
-                // Enviar la fecha
-                $resultado[$dia]['fecha'] = $fecha;
+                    // Add the date and available hours
+                    $resultado[$workingDaysFound] = [
+                        'fecha' => $fecha,
+                        'horas_disponibles' => []
+                    ];
 
-                // Generar turnos de 30 min entre 10:00 y 13:00
-                $inicio = strtotime("$fecha 10:00");
-                $fin = strtotime("$fecha 13:00");
+                    // Generate 30-minute slots between 10:00 and 13:00
+                    $inicio = strtotime("$fecha 10:00");
+                    $fin = strtotime("$fecha 13:00");
 
-                for ($t = $inicio; $t < $fin; $t += 30 * 60) {
-                    $hora_str = date('H:i', $t);
-                    if (!in_array($hora_str, $ocupadas)) {
-                        $resultado[$dia][] = ['hour' => $hora_str];
+                    for ($t = $inicio; $t < $fin; $t += 30 * 60) {
+                        $hora_str = date('H:i', $t);
+                        if (!in_array($hora_str, $ocupadas)) {
+                            $resultado[$workingDaysFound]['horas_disponibles'][] = ['hour' => $hora_str];
+                        }
                     }
                 }
+                $offset++;
             }
 
             mysqli_close($conn);
 
-            return $this->success([
-                'available_hours' => $resultado
-            ]);
+            return $this->success($resultado);
         } catch (\Exception $e) {
             return $this->error([
                 'message' => 'Error al obtener las horas disponibles',
