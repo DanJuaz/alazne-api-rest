@@ -23,4 +23,5 @@ class Reserva extends Model
         'estado' => 'integer',
         'status' => 'integer'
     ];
+    public $timestamps = false;
 } 
