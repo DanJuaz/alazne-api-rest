@@ -2,76 +2,57 @@
 
 namespace App\Http\Controllers\Api;
 
-use App\Http\Controllers\Controller;
 use App\Models\Usuario;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Validation\ValidationException;
-use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Validator;
+use PHPOpenSourceSaver\JWTAuth\Facades\JWTAuth;
 
-class AuthController extends Controller
+class AuthController extends BaseApiController
 {
-    public function login(Request $request)
+    public function __construct()
     {
-        try {
-            $request->validate([
-                'usuario' => 'required|string',
-                'password' => 'required|string',
-            ]);
-
-            $user = Usuario::where('usuario', $request->usuario)->first();
-
-            if (!$user || !Hash::check($request->password, $user->password)) {
-                throw ValidationException::withMessages([
-                    'usuario' => ['Las credenciales proporcionadas son incorrectas.'],
-                ]);
-            }
-            // Generar token aleatorio y guardarlo
-            $token = Str::random(60);
-            $user->token = $token;
-            $user->save();
-
-            return response()->json([
-                'success' => true,
-                'message' => 'Inicio de sesión exitoso',
-                'token' => $token,
-            ], 200);
-
-        } catch (ValidationException $e) {
-            return response()->json([
-                'success' => false,
-                'message' => $e->getMessage(),
-                'errors' => $e->errors()
-            ], 422);
-
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Error al iniciar sesión: ' . $e->getMessage()
-            ], 500);
-        }
+        $this->middleware('auth:api', ['except' => ['login']]);
     }
 
-    public function logout(Request $request)
+    public function login(Request $request)
     {
-        try {
-            $user = Usuario::where('token', $request->bearerToken())->first();
+        $credentials = $request->only('usuario', 'password');
 
-            if ($user) {
-                $user->token = null;
-                $user->save();
-            }
-
-            return response()->json([
-                'success' => true,
-                'message' => 'Sesión cerrada exitosamente'
-            ], 200);
-
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Error al cerrar sesión: ' . $e->getMessage()
-            ], 500);
+        if (!$token = Auth::attempt($credentials)) {
+            return response()->json(['error' => 'Credenciales inválidas'], 401);
         }
+
+        return response()->json([
+            'success' => true,
+            'token' => $token,
+            'message' => 'Inicio de sesión exitoso'
+        ]);
+    }
+
+    public function logout(): JsonResponse
+    {
+        auth()->logout();
+        return $this->success([
+            'message' => 'Sesión cerrada exitosamente'
+        ]);
+    }
+
+    public function refresh(): JsonResponse
+    {
+        $token = auth()->refresh();
+        return response()->json([
+            'success' => true,
+            'token' => $token,
+            'user' => auth()->user(),
+            'message' => 'Token refrescado exitosamente'
+        ]);
+    }
+
+    public function me(): JsonResponse
+    {
+        return $this->success(auth()->user());
     }
 }
