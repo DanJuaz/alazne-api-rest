@@ -19,9 +19,10 @@ class Reserva extends Model
     ];
 
     protected $casts = [
-        'fecha_hora_inicio' => 'datetime',
+        'fecha_hora_inicio' => 'datetime:Y-m-d H:i',
         'estado' => 'integer',
         'status' => 'integer'
     ];
+    
     public $timestamps = false;
 } 
