@@ -27,7 +27,7 @@ Route::post('login', [AuthController::class, 'login']);
 // Database public routes
 Route::get('check-connection', [DatabaseController::class, 'checkConnection']);
 Route::get('available-bookings', [DatabaseController::class, 'availableBookings']);
-Route::post('bookings', [DatabaseController::class, 'postBooking']);
+Route::post('booking', [DatabaseController::class, 'postBooking']);
 
 // Protected routes
 Route::middleware('auth:api')->group(function () {
