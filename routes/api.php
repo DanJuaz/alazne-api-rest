@@ -37,4 +37,7 @@ Route::middleware('auth:api')->group(function () {
     
     // CRUD Reservas
     Route::apiResource('reservas', ReservaController::class);
+    // Reservas FullCalendar
+    Route::get('reservas-fullcalendar', [ReservaController::class, 'fullCalendar']);
+
 });
